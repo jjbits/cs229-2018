@@ -1,0 +1,56 @@
+diff --git a/donkeycar/parts/camera.py b/donkeycar/parts/camera.py
+index fa6d2d6..a2bded4 100644
+--- a/donkeycar/parts/camera.py
++++ b/donkeycar/parts/camera.py
+@@ -3,6 +3,7 @@ import time
+ import numpy as np
+ from PIL import Image
+ import glob
++import cv2
+ 
+ 
+ class BaseCamera:
+@@ -39,11 +40,27 @@ class PiCamera(BaseCamera):
+         self.rawCapture.truncate(0)
+         return frame
+ 
++    def filter_image(self, image):
++        hsv_image = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
++        sensitivity = 51
++        lower_white = np.array([0,0,255-sensitivity])
++        upper_white = np.array([255,sensitivity,255])
++        lower_yellow = np.array([18,102,204], np.uint8)
++        upper_yellow = np.array([25,255,255], np.uint8)
++        white_mask = cv2.inRange(hsv_image, lower_white, upper_white)
++        yellow_mask = cv2.inRange(hsv_image, lower_yellow, upper_yellow)
++        filtered_image = cv2.bitwise_and(image, image, mask=white_mask+yellow_mask)
++        return filtered_image
++
+     def update(self):
+         # keep looping infinitely until the thread is stopped
+         for f in self.stream:
+             # grab the frame from the stream and clear the stream in
+             # preparation for the next frame
++            #image = cv2.cvtColor(f.array, cv2.COLOR_BGR2GRAY)
++            #image = cv2.Canny(f.array, 50, 150)
++            #self.frame = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
++            #self.frame = self.filter_image(f.array)
+             self.frame = f.array
+             self.rawCapture.truncate(0)
+ 
+diff --git a/donkeycar/parts/keras.py b/donkeycar/parts/keras.py
+index 66b5fad..2c4951a 100644
+--- a/donkeycar/parts/keras.py
++++ b/donkeycar/parts/keras.py
+@@ -72,9 +72,10 @@ class KerasLinear(KerasPilot):
+     def run(self, img_arr):
+         img_arr = img_arr.reshape((1,) + img_arr.shape)
+         outputs = self.model.predict(img_arr)
+-        # print(len(outputs), outputs)
++        #print(len(outputs), outputs)
+         steering = outputs[0]
+         throttle = outputs[1]
++        throttle[0][0] -= 0.02
+         return steering[0][0], throttle[0][0]
+ 
+ 
